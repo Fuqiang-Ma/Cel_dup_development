@@ -2,9 +2,11 @@ library(dplyr)
 library(purrr)
 load("cell_exp_domain.RData")
 load("cluster_1_2_3.RData")
-load("neuronal_non neuronal_tissues.RData")
 load("domain_elegans.RData")
+load("celltype.RData")
+load("neuronal_non neuronal_cells.RData")
 
+#get neu_list and non_neu_list from "Neurons_non neuronal_cells_heatmap.R"
 mean2 = function(x){
   mean(x,na.rm = T)
 }
@@ -64,7 +66,7 @@ for(i in c(1:2)){
   for(n in 1:10){
     dom = domain_elegans[grep(cur_domain_sum3[n,"Var1"],domain_elegans$domain),]
     dom2 = cur[cur$WBGene %in% unique(dom$Wb),]
-    dom2_mean = data.frame(apply(dom2[,2:77],2,mean2),apply(dom2[,2:77],2,sd2))
+    dom2_mean = data.frame(apply(dom2[,1:77],2,mean2),apply(dom2[,1:77],2,sd2))
     colnames(dom2_mean) = c(paste0(cur_domain_sum3[n,"Var1"],"_mean(",cur_domain_sum3[n,"domain_num"],")"),paste0(cur_domain_sum3[n,"Var1"],"_sd"))
     dom2_mean = arrange(dom2_mean,as.numeric(rownames(dom2_mean)))
     cls2_list3[[n]] = dom2_mean
@@ -84,7 +86,7 @@ for(i in c(1:2)){
   cls2_list3_3 = list()
   for(p in 1:10){
     dom_low = domain_elegans[grep(cur_domain_sum3[p,"Var1"],domain_elegans$domain),]
-    dom3 = cur_2[cur_2$WBGene %in% unique(dom_low$Wb),]
+    dom3 = cur[cur$WBGene %in% unique(dom_low$Wb),]
     dom2_low = cur_2[cur_2$WBGene %in% unique(dom3$WBGene),]
     dom2_mean_low = data.frame(apply(dom2_low[,1:77],2,mean2),apply(dom2_low[,1:77],2,sd2))
     colnames(dom2_mean_low) = c(paste0(cur_domain_sum3[p,"Var1"],"_mean(",cur_domain_sum3[p,"domain_num"],")"),paste0(cur_domain_sum3[p,"Var1"],"_sd"))
@@ -94,7 +96,6 @@ for(i in c(1:2)){
   cls2_list3_4 = do.call(bind_cols,cls2_list3_3)
   write.csv(cls2_list3_4,file = paste0("cls2_lowexp_",type2[i],"_domain.csv"))
 }
-
 
 
 #cluster 3 genes
@@ -142,7 +143,7 @@ for(i in c(1:2)){
     cls3_list3_3 = list()
     for(p in 1:10){
       dom_low = domain_elegans[grep(cur_domain_sum3[p,"Var1"],domain_elegans$domain),]
-      dom3 = cur_2[cur_2$WBGene %in% unique(dom_low$Wb),]
+      dom3 = cur[cur$WBGene %in% unique(dom_low$Wb),]
       dom2_low = cur_2[cur_2$WBGene %in% unique(dom3$WBGene),]
       dom2_mean_low = data.frame(apply(dom2_low[,1:77],2,mean2),apply(dom2_low[,1:77],2,sd2))
       colnames(dom2_mean_low) = c(paste0(cur_domain_sum3[p,"Var1"],"_mean(",cur_domain_sum3[p,"domain_num"],")"),paste0(cur_domain_sum3[p,"Var1"],"_sd"))
@@ -152,176 +153,4 @@ for(i in c(1:2)){
     cls3_list3_4 = do.call(bind_cols,cls3_list3_3)
     write.csv(cls3_list3_4,file = paste0("cls3_lowexp_",type2[i],"_domain.csv"))
 }
-  
-  
-  
-  
-  
-  
-  
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-###do the lowly expressed genes
-#cls2
-cls2_1.2_less0 = filter(zscore_all,cls_type == "cls2" & X3000 < 0.6)
-cls2_1.2_less0_BWM_head_row_B_VL = filter(cls2_1.2_less0, celltype %in% c("BWM_head_row_B_VL"))
-cls2_1.2_less0_ASEL = filter(cls2_1.2_less0, celltype %in% c("ASEL"))
-cls2_list4 = allcell_list[which(type_allcell %in% as.character(unique(cls2_1.2_less0_BWM_head_row_B_VL$celltype)))]
-cls2_list4 = allcell_list[which(type_allcell %in% as.character(unique(cls2_1.2_less0_ASEL$celltype)))]
-
-#cls3
-cls2_1.2_less0 = filter(zscore_all,cls_type == "cls3" & X455 < 0)
-cls2_1.2_less0_Hyp_1_2 = filter(cls2_1.2_less0, celltype %in% c("hyp1_2"))
-cls2_1.2_less0_ASG = filter(cls2_1.2_less0, celltype %in% c("ASG"))
-cls2_list4 = allcell_list[which(type_allcell %in% as.character(unique(cls2_1.2_less0_Hyp_1_2$celltype)))]
-cls2_list4 = allcell_list[which(type_allcell %in% as.character(unique(cls2_1.2_less0_ASG$celltype)))]
-
-for(i in 1:length(cls2_list4)){
-  cls2_list4[[i]]$WBGene = rownames(cls2_list4[[i]])
-}
-cls2_list4_2 = do.call(rbind,cls2_list4)
-
-for(i in 1:ncol(cls2_list4_2)){
-  cur = filter(cells171,Lineage == unique(cls2_list4_2$celltype))
-  for(j in 1:nrow(cur)){
-    if(isTRUE(as.numeric(colnames(cls2_list4_2)[i]) > as.numeric(strsplit(cur[j,"time_range"],"_")[[1]][2]) & as.numeric(colnames(cls2_list4_2)[i]) < as.numeric(strsplit(cur[j,"time_range"],"_")[[1]][3]))){
-      colnames(cls2_list4_2)[i] = paste(colnames(cls2_list4_2)[i],cur[j,"Precursor2"],sep = "@@@@@")
-    }
-  }
-}
-
-cls2_list3_3 = list()
-for(i in 1:10){
-  dom = domain_elegans[grep(cls2_list2_domain_sum3[i,"Var1"],domain_elegans$domain),]#note should be cls2_list2_domain_sum3
-  dom2 = cls2_list2_2[cls2_list2_2$WBGene %in% unique(dom$Wb),]
-  dom2_low = cls2_list4_2[cls2_list4_2$WBGene %in% unique(dom2$WBGene),]
-  dom2_mean = data.frame(apply(dom2_low[,1:77],2,mean2),apply(dom2_low[,1:77],2,sd2))
-  colnames(dom2_mean) = c(paste0(cls2_list2_domain_sum3[i,"Var1"],"_mean(",cls2_list2_domain_sum3[i,"domain_num"],")"),paste0(cls2_list2_domain_sum3[i,"Var1"],"_sd"))
-  dom2_mean = arrange(dom2_mean,as.numeric(rownames(dom2_mean)))
-  cls2_list3_3[[i]] = dom2_mean
-}
-cls2_list3_4 = do.call(bind_cols,cls2_list3_3)
-setwd("D:/Zheng lab/wild isolates/dup_evo_dev/Z_score2/heatmap_neu_non_neu/examples3")
-write.csv(cls2_list3_4,file = "cls2_celltypes_examples_mean_zscore_less0.6_BWM_head_row_B_VL.csv")
-write.csv(cls2_list3_4,file = "cls2_celltypes_examples_mean_zscore_less0.6_ASEL.csv")
-write.csv(cls2_1.2_less0,file = "cls2_celltypes_examples_less0_names.csv")
-write.csv(cls2_list3_4,file = "cls3_celltypes_examples_mean_zscore_X455less0_Hyp_1_2.csv")
-write.csv(cls2_list3_4,file = "cls3_celltypes_examples_mean_zscore_X455less0_ASG.csv")
-#write.csv(cls2_1.2_less0,file = "cls3_celltypes_examples_less0_X455names.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
