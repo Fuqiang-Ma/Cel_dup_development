@@ -1,10 +1,89 @@
 library(dplyr)
 library(RColorBrewer)
 library(gplots)
+library(stringr)
+library(purrr)
 load("cluster_1_2_3.RData")
-load("neuronal_non neuronal_tissues.RData")
+load("sc_exp.RData")
+load("celltype.RData")
+load("neuronal_non neuronal_cells.RData")
+
+zscore = function(x){
+  x = (x - mean(x))/sd(x)
+}
+
+mean2 = function(x){
+  mean(x,na.rm = T)
+}
+
 
 #neurons
+neu_list2 = list()
+for(i in 1:length(type_neu)){
+  for(j in 1:nrow(celltype)){
+    cur = filter(neu_cell,Neuron == type_neu[i])
+    cur_type = celltype[celltype$celltype2 %in% cur$Precursor2,]
+    cur_exp = select(sc_exp,c(cur_type[,"index"])) #note whether the order is time series
+    for(g in 1:ncol(cur_exp)){
+      for(h in 1:nrow(cur_type)){
+        if(colnames(cur_exp)[g] == cur_type[h,"index"]){
+          colnames(cur_exp)[g] = cur_type[h,"celltype2"]
+        }}}
+  }
+  neu_list2[[i]] = cur_exp
+  if(i %% 10 ==0){
+    cat(i,"rows finished \n")
+  }
+}
+neu_list2[[29]][,"AWC"] = rowMeans(neu_list2[[29]][,c("AWC_OFF","AWC_ON")])
+neu_list2[[44]][,"IL2VL"] = rowMeans(neu_list2[[44]][,c("IL2_DV","IL2_LR")])
+neu_list2[[60]][,"RMDDL"] = rowMeans(neu_list2[[60]][,c("RMD_DV","RMD_LR")])
+neu_list2[[61]][,"RMDVL"] = rowMeans(neu_list2[[61]][,c("RMD_DV","RMD_LR")])
+neu_list2[[29]] = select(neu_list2[[29]],-c("AWC_OFF","AWC_ON"))
+neu_list2[[44]] = select(neu_list2[[44]],-c("IL2_DV","IL2_LR"))
+neu_list2[[60]] = select(neu_list2[[60]],-c("RMD_DV","RMD_LR"))
+neu_list2[[61]] = select(neu_list2[[61]],-c("RMD_DV","RMD_LR"))
+
+#zscore
+neu_list3 = list()
+for(i in 1:length(neu_list2)){
+  neu_list2[[i]] = log2(neu_list2[[i]] + 1)
+  neu_list3[[i]] = t(apply(neu_list2[[i]],1,zscore))
+}
+
+neu_cell$time_range = paste("X",neu_cell$Start_time,neu_cell$End_time,sep = "_")
+for(i in 1:length(neu_list3)){
+  for(j in 1:ncol(neu_list3[[i]])){
+    for(m in 1:nrow(neu_cell)){
+      if(colnames(neu_list3[[i]])[j] == neu_cell[m,"Precursor2"]){
+        colnames(neu_list3[[i]])[j] = neu_cell[m,"time_range"]
+      }
+    }
+  }
+}
+colnames(neu_list3[[29]])[colnames(neu_list3[[29]]) == "AWC" ] = "X_2600_3200"
+colnames(neu_list3[[44]])[colnames(neu_list3[[44]]) == "IL2VL" ] = "X_2600_3200"
+colnames(neu_list3[[60]])[colnames(neu_list3[[60]]) == "RMDDL" ] = "X_2600_3200"
+colnames(neu_list3[[61]])[colnames(neu_list3[[61]]) == "RMDVL" ] = "X_2600_3200"
+
+time_neu = c(seq(55,800,by = 10),1800,3000)
+neu_list = list()
+for(i in 1:length(neu_list3)){
+  df = data.frame(matrix(nrow = nrow(neu_list3[[i]]), ncol = length(time_neu) + 1))
+  rownames(df) = rownames(neu_list3[[i]])
+  colnames(df) = c(time_neu,"celltype")
+  df[,"celltype"] = type_neu[i]
+  for(j in 1:ncol(neu_list3[[i]])){
+    for(m in 1:(ncol(df) -1)){
+      if(isTRUE(as.numeric(colnames(df)[m]) > as.numeric(strsplit(colnames(neu_list3[[i]])[j],"_")[[1]][2]) & as.numeric(colnames(df)[m]) < as.numeric(strsplit(colnames(neu_list3[[i]])[j],"_")[[1]][3]))){
+        df[,m] = neu_list3[[i]][,j]
+      }
+    }
+  }
+  neu_list[[i]] = df
+}
+
+
 rec_z_cls2$WBGene = rownames(rec_z_cls2)
 cls_list = list(filter(rec_z_cls2,cls == 2),filter(rec_z_cls2,cls == 3))
 cls_list2 = list()
@@ -72,6 +151,60 @@ for(i in 1:length(type_cls)){
 }
 
 #non-neuronal cells
+type_non_neu = sort(unique(non_neu_cell$Lineage))
+non_neu_list2 = list()
+for(i in 1:length(type_non_neu)){
+  for(j in 1:nrow(celltype)){
+    cur = filter(non_neu_cell,Lineage == type_non_neu[i])
+    cur_type = celltype[celltype$celltype2 %in% cur$Precursor2,]
+    cur_exp = select(sc_exp,c(cur_type[,"index"]))
+    for(g in 1:ncol(cur_exp)){
+      for(h in 1:nrow(cur_type)){
+        if(isTRUE(colnames(cur_exp)[g] == cur_type[h,"index"])){
+          colnames(cur_exp)[g] = cur_type[h,"celltype2"]
+        }}}
+  }
+  non_neu_list2[[i]] = cur_exp
+  if(i %% 10 ==0){
+    cat(i,"rows finished \n")
+  }
+}
+
+#zscore
+non_neu_list3 = list()
+for(i in 1:length(non_neu_list2)){
+  non_neu_list2[[i]] = log2(non_neu_list2[[i]] + 1)
+  non_neu_list3[[i]] = t(apply(non_neu_list2[[i]],1,zscore))
+}
+
+non_neu_cell$time_range = paste("X",non_neu_cell$Start_time,non_neu_cell$End_time,sep = "_")
+for(i in 1:length(non_neu_list3)){
+  for(j in 1:ncol(non_neu_list3[[i]])){
+    for(m in 1:nrow(non_neu_cell)){
+      if(colnames(non_neu_list3[[i]])[j] == non_neu_cell[m,"Precursor2"]){
+        colnames(non_neu_list3[[i]])[j] = non_neu_cell[m,"time_range"]
+      }
+    }
+  }
+}
+
+time_non_neu = c(seq(55,800,by = 10),1800,3000)
+non_neu_list = list()
+for(i in 1:length(non_neu_list3)){
+  df = data.frame(matrix(nrow = nrow(non_neu_list3[[i]]), ncol = length(time_non_neu) + 1))
+  rownames(df) = rownames(non_neu_list3[[i]])
+  colnames(df) = c(time_non_neu,"celltype")
+  df[,"celltype"] = type_non_neu[i]
+  for(j in 1:ncol(non_neu_list3[[i]])){
+    for(m in 1:(ncol(df) -1)){
+      if(isTRUE(as.numeric(colnames(df)[m]) > as.numeric(strsplit(colnames(non_neu_list3[[i]])[j],"_")[[1]][2]) & as.numeric(colnames(df)[m]) < as.numeric(strsplit(colnames(non_neu_list3[[i]])[j],"_")[[1]][3]))){
+        df[,m] = non_neu_list3[[i]][,j]
+      }
+    }
+  }
+  non_neu_list[[i]] = df
+}
+
 rec_z_cls2$WBGene = rownames(rec_z_cls2)
 cls_list = list(filter(rec_z_cls2,cls == 2),filter(rec_z_cls2,cls == 3))
 cls_list2 = list()
@@ -110,7 +243,7 @@ for(i in 1:length(type_cls)){
   #get lineage name
   cur3 = data.frame(cur3) #note cur3 above is a mtrix
   for(m in 1:nrow(cur3)){
-    cur_neu = filter(non_neu_filter,Lineage == rownames(cur3)[m])
+    cur_neu = filter(non_neu_cell,Lineage == rownames(cur3)[m])
     for(n in 1:nrow(cur_neu)){
       cur_neu = cur_neu[cur_neu$Precursor %in% lin_cells$X,]
       cur_neu[n,"num"] = nchar(cur_neu[n,"Precursor"])
