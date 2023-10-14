@@ -1,0 +1,202 @@
+circos -conf circos.conf
+
+###conf files:
+#N0 genes
+<<include etc/colors_fonts_patterns.conf>>
+
+<<include ideogram.conf>>
+<<include ticks.conf>>
+
+<image>
+angle_offset* = -82
+<<include etc/image.conf>>
+</image>
+
+karyotype = karyotype.cele.txt
+
+chromosomes_units           = 1000000
+chromosomes                 = -hsX;-hsY
+chromosomes_display_default = yes
+
+<plots>
+
+<plot>
+file = n0_pos_fre.txt
+type = histogram
+r0   = 0.1r
+r1   = 0.99r
+min  = -150
+max  = -1
+
+#color      = green
+fill_color = green
+#fill_color = grey,grey,grey,black,black
+#pattern    = vline,hline,solid,checker,solid
+thickness  = 2
+#thickness  = 1,5,10,15,20
+
+sort_bin_values = no
+extend_bin      = no
+
+<axes>
+<axis>
+color     = lgreen
+thickness = 2
+spacing   = 0.1r
+</axis>
+</axes>
+
+</plot>
+</plots>
+<<include etc/housekeeping.conf>>
+
+
+
+#N3/N1 genes
+<<include etc/colors_fonts_patterns.conf>>
+
+<<include ideogram.conf>>
+<<include ticks.conf>>
+
+<image>
+angle_offset* = -82
+<<include etc/image.conf>>
+</image>
+
+karyotype = karyotype.cele.txt
+
+chromosomes_units           = 1000000
+chromosomes                 = -hsX;-hsY
+chromosomes_display_default = yes
+
+<plots>
+
+<plot>
+file = n3n1_pos_fre.txt
+type = histogram
+r0   = 0.1r
+r1   = 0.99r
+min  = -150
+max  = -1
+
+#color      = green
+fill_color = green
+#fill_color = grey,grey,grey,black,black
+#pattern    = vline,hline,solid,checker,solid
+thickness  = 2
+#thickness  = 1,5,10,15,20
+
+sort_bin_values = no
+extend_bin      = no
+
+<axes>
+<axis>
+color     = lgreen
+thickness = 2
+spacing   = 0.1r
+</axis>
+</axes>
+
+</plot>
+</plots>
+<<include etc/housekeeping.conf>>
+
+
+#N4cel genes
+<<include etc/colors_fonts_patterns.conf>>
+
+<<include ideogram.conf>>
+<<include ticks.conf>>
+
+<image>
+angle_offset* = -82
+<<include etc/image.conf>>
+</image>
+
+karyotype = karyotype.cele.txt
+
+chromosomes_units           = 1000000
+chromosomes                 = -hsX;-hsY
+chromosomes_display_default = yes
+
+<plots>
+
+<plot>
+file = n4cel_pos_fre.txt
+type = histogram
+r0   = 0.1r
+r1   = 0.99r
+min  = -150
+max  = -1
+
+#color      = green
+fill_color = green
+#fill_color = grey,grey,grey,black,black
+#pattern    = vline,hline,solid,checker,solid
+thickness  = 2
+#thickness  = 1,5,10,15,20
+
+sort_bin_values = no
+extend_bin      = no
+
+<axes>
+<axis>
+color     = lgreen
+thickness = 2
+spacing   = 0.1r
+</axis>
+</axes>
+
+</plot>
+</plots>
+<<include etc/housekeeping.conf>>
+
+
+#single copy genes
+<<include etc/colors_fonts_patterns.conf>>
+
+<<include ideogram.conf>>
+<<include ticks.conf>>
+
+<image>
+angle_offset* = -82
+<<include etc/image.conf>>
+</image>
+
+karyotype = karyotype.cele.txt
+
+chromosomes_units           = 1000000
+chromosomes                 = -hsX;-hsY
+chromosomes_display_default = yes
+
+<plots>
+
+<plot>
+file = oneTOone_pos_fre.txt
+type = histogram
+r0   = 0.1r
+r1   = 0.99r
+min  = -150
+max  = -1
+
+#color      = green
+fill_color = green
+#fill_color = grey,grey,grey,black,black
+#pattern    = vline,hline,solid,checker,solid
+thickness  = 2
+#thickness  = 1,5,10,15,20
+
+sort_bin_values = no
+extend_bin      = no
+
+<axes>
+<axis>
+color     = lgreen
+thickness = 2
+spacing   = 0.1r
+</axis>
+</axes>
+
+</plot>
+</plots>
+<<include etc/housekeeping.conf>>
