@@ -1,0 +1,6 @@
+chr - I 1 0 15072434 chr1
+chr - II 2 0 15279421 chr2
+chr - III 3 0 13783801 chr3
+chr - IV 4 0 17493829 chr4
+chr - V 5 0 20924180 chr5
+chr - X 6 0 17718942 chr6
