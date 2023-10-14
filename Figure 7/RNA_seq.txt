@@ -1,0 +1,63 @@
+#shell
+#download SRR data 
+/home/fqma/sratoolkit.3.0.6-ubuntu64/bin/fastq-dump-orig.3.0.6 SRRXXX --split-files
+#index genome
+STAR --runThreadN 32 --genomeSAindexNbases 12 --runMode genomeGenerate --genomeDir Cel_genome --genomeFastaFiles caenorhabditis_elegans.PRJNA13758.WBPS16.genomic.fa --sjdbGTFfile caenorhabditis_elegans.PRJNA13758.WBPS16.canonical_geneset.gtf --sjdbOverhang 100
+#STAR alignment
+STAR --runThreadN 32 --genomeDir /lustre1/g/sbs_cgz/wild_isolates/stress/Cel_genome --readFilesIn SRRXXX.fastq --outFileNamePrefix wt/streess_1/ --quantMode GeneCounts
+
+#in R
+library("DESeq2")
+library(dplyr)
+library(tidyr)
+
+setwd("")#aligned read count files by STAR
+rnaseq = list.files("./")
+result_list = list()
+for (i in 1:length(rnaseq)){
+  cur = list.files(paste0("./",rnaseq[i]))
+  count_list = list()
+  count_list2 = list()
+  for (j in 1:length(cur)){
+    cur2 = list.files(paste0("./",rnaseq[i],"/",cur[j]),pattern = "ReadsPerGene.out.tab")
+    if(grepl("wt",cur[j])){
+      cur_count = read.csv(paste0("./",rnaseq[i],"/",cur[j],"/",cur2),sep = "\t",header = F,skip = 4) %>% select(c(V1,V2))
+      count_list[[j]] = cur_count
+      } else {
+      cur_count2 = read.csv(paste0("./",rnaseq[i],"/",cur[j],"/",cur2),sep = "\t",header = F,skip = 4) %>% select(c(V1,V2))
+      count_list2[[j]] = cur_count2
+      }
+  }
+  count_list = count_list[!sapply(count_list, is.null)]
+  count_list2 = count_list2[!sapply(count_list2, is.null)]
+  count1 = Reduce(function(x,y) merge(x,y,by = "V1"),count_list)
+  count2 = Reduce(function(x,y) merge(x,y,by = "V1"),count_list2)
+  countData = merge(count1,count2,by = "V1")
+  colnames(countData) <- c("gene_name", paste0("Control",1:(ncol(count1)-1)),paste0("Mutant",1:(ncol(count2)-1)))
+  
+  sample <- matrix( c(paste0("Control",1:(ncol(count1)-1)),paste0("Mutant",1:(ncol(count2)-1))) ,ncol = 1, nrow = ncol(count1) + ncol(count2)-2 , byrow = T, dimnames = list(NULL,c("id")) )
+  condition <- matrix( c( rep("control",ncol(count1)-1),rep("mutant",ncol(count2)-1)) ,ncol = 1, nrow = ncol(count1) + ncol(count2)-2 , byrow = T , dimnames = list(NULL,c("condition")))
+  metaData <- cbind(sample , condition)
+  
+  dds <- DESeqDataSetFromMatrix(countData=countData, 
+                                colData=metaData, 
+                                design=~condition, tidy = TRUE)
+  
+  dds <-DESeq(dds ,betaPrior = T)
+  res <- results(dds , addMLE = T , pAdjustMethod = 'BH')
+  internal <- as.data.frame(mcols(dds)) %>% dplyr::select(c(MLE_Intercept, MLE_condition_mutant_vs_control))
+  result <- as.data.frame(res)
+  result <- tibble::rownames_to_column(result, "Gene")
+  bind_cols(result, internal) -> moreresult
+  
+  moreresult <- arrange(moreresult, Gene)
+  moreresult <- moreresult %>% mutate( baseMean_WT=2^MLE_Intercept) 
+  moreresult <- moreresult %>% mutate( baseMean_Mutant=2^(MLE_Intercept+MLE_condition_mutant_vs_control)) 
+  moreresult <- moreresult %>% select(-c(MLE_Intercept,MLE_condition_mutant_vs_control,lfcMLE))
+  moreresult <- moreresult %>% select(Gene,baseMean,baseMean_WT,baseMean_Mutant,log2FoldChange,lfcSE,stat,pvalue,padj)
+  moreresult <- moreresult %>% filter(pvalue <= 0.05) %>% arrange(padj )
+  moreresult$condition = rnaseq[i]
+  
+  result_list[[i]] = moreresult
+}
+result_list2 = do.call(rbind,result_list)
