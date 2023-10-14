@@ -1,0 +1,453 @@
+#shell file
+codeml  XXX.ctl
+
+#free ratio model template
+      seqfile = OG_XXX.meg            * sequence data filename
+     treefile = OG_XXX.txt       * tree structure file name
+      outfile = OG_XXX.result.txt         * main result file name
+
+      runmode = 0  * 0: user tree;  1: semi-automatic;  2: automatic
+                   * 3: StepwiseAddition; (4,5):PerturbationNNI; -2: pairwise
+
+      seqtype = 1  * 1:codons; 2:AAs; 3:codons-->AAs
+    CodonFreq = 2  * 0:1/61 each, 1:F1X4, 2:F3X4, 3:codon table
+
+        ndata = 1 * number of gene alignments to be analysed
+		clock = 0  * 0:no clock, 1:clock; 2:local clock; 3:CombinedAnalysis
+
+        model = 1  * models for codons: 0:one, 1:b, 2:2 or more dN/dS ratios for branches
+
+      NSsites = 0  * 0:one w;1:neutral;2:selection; 3:discrete;4:freqs;
+                   * 5:gamma;6:2gamma;7:beta;8:beta&w;9:beta&gamma;
+                   * 10:beta&gamma+1; 11:beta&normal>1; 12:0&2normal>1;
+                   * 13:3normal>0
+
+        icode = 0  * 0:universal code; 1:mammalian mt; 2-10:see below
+
+    fix_omega = 0  * 1: omega or omega_1 fixed, 0: estimate 
+        omega = .4 * initial or fixed omega, for codons or codon-based AAs
+
+    cleandata = 1  * remove sites with ambiguity data (1:yes, 0:no)?
+
+#alternative branch site model template
+      seqfile = OG_XXX.meg            * sequence data filename
+     treefile = OG_XXX.txt       * tree structure file name
+      outfile = OG_XXX.result2.txt         * main result file name
+
+      runmode = 0  * 0: user tree;  1: semi-automatic;  2: automatic
+                   * 3: StepwiseAddition; (4,5):PerturbationNNI; -2: pairwise
+
+      seqtype = 1  * 1:codons; 2:AAs; 3:codons-->AAs
+    CodonFreq = 2  * 0:1/61 each, 1:F1X4, 2:F3X4, 3:codon table
+
+        ndata = 1 * number of gene alignments to be analysed
+		clock = 0  * 0:no clock, 1:clock; 2:local clock; 3:CombinedAnalysis
+
+        model = 2  * models for codons: 0:one, 1:b, 2:2 or more dN/dS ratios for branches
+
+      NSsites = 2  * 0:one w;1:neutral;2:selection; 3:discrete;4:freqs;
+                   * 5:gamma;6:2gamma;7:beta;8:beta&w;9:beta&gamma;
+                   * 10:beta&gamma+1; 11:beta&normal>1; 12:0&2normal>1;
+                   * 13:3normal>0
+
+        icode = 0  * 0:universal code; 1:mammalian mt; 2-10:see below
+
+    fix_omega = 0  * 1: omega or omega_1 fixed, 0: estimate 
+        omega = 1 * initial or fixed omega, for codons or codon-based AAs
+
+    cleandata = 1  * remove sites with ambiguity data (1:yes, 0:no)?
+
+
+#null branch site model template
+      seqfile = OG_XXX.meg            * sequence data filename
+     treefile = OG_XXX.txt       * tree structure file name
+      outfile = OG_XXX.result2.txt         * main result file name
+
+      runmode = 0  * 0: user tree;  1: semi-automatic;  2: automatic
+                   * 3: StepwiseAddition; (4,5):PerturbationNNI; -2: pairwise
+
+      seqtype = 1  * 1:codons; 2:AAs; 3:codons-->AAs
+    CodonFreq = 2  * 0:1/61 each, 1:F1X4, 2:F3X4, 3:codon table
+
+        ndata = 1 * number of gene alignments to be analysed
+		clock = 0  * 0:no clock, 1:clock; 2:local clock; 3:CombinedAnalysis
+
+        model = 2  * models for codons: 0:one, 1:b, 2:2 or more dN/dS ratios for branches
+
+      NSsites = 2  * 0:one w;1:neutral;2:selection; 3:discrete;4:freqs;
+                   * 5:gamma;6:2gamma;7:beta;8:beta&w;9:beta&gamma;
+                   * 10:beta&gamma+1; 11:beta&normal>1; 12:0&2normal>1;
+                   * 13:3normal>0
+
+        icode = 0  * 0:universal code; 1:mammalian mt; 2-10:see below
+
+    fix_omega = 1  * 1: omega or omega_1 fixed, 0: estimate 
+        omega = 1 * initial or fixed omega, for codons or codon-based AAs
+
+    cleandata = 1  * remove sites with ambiguity data (1:yes, 0:no)?
+
+
+###preparation in R
+library(ape)
+library(dplyr)
+library(stringr)
+
+#DNA alignment 
+M1_orthogroup <- filter(orthogroup, Orthogroup %in% M1_OGs) #load orthogroup
+dna_cds <- list()
+dna_cds_name <- list()
+cds_filename <- list.files("",pattern=".fa$") #genome file with cds sequences
+index <- c(1:11)
+cds_filename <- cds_filename[index]
+
+for(i in 1:11){
+  dna_cds[[i]] <-read.FASTA(paste0("" , cds_filename[i]))
+  dna_cds_name[[i]] <- names(dna_cds[[i]])
+}
+for(i in 1:11){
+  for(j in 1:length(dna_cds_name[[i]])){
+    dna_cds_name[[i]][j] <- strsplit(dna_cds_name[[i]][j] , " ")[[1]][1]
+  }  
+}
+
+for(i in 1:nrow(M1_orthogroup)){
+  gene <- paste(M1_orthogroup[i,2:12] , collapse = ",")
+  gene <- strsplit(gene , ",+")[[1]]
+  gene <- unique(gene[gene!=""])
+  
+  M1_orthogroup[i,"genecnt"] <- length(gene)
+  if(M1_orthogroup[i,"elegans_longest_transcript"] == ""){
+    M1_orthogroup[i,"genecnt"] <- 0
+  }
+}
+
+M1_orthogroup = filter(M1_orthogroup,genecnt == 2 | genecnt == 3)
+setwd("D:/Zheng lab/wild isolates/dup_evo_dev/Revision/dNdS_OG_2_3genes")
+for(i in 1:nrow(M1_orthogroup)){
+  alltargetcds <- list()
+  for(j in 1:11){
+    genelist <- paste(M1_orthogroup[i,j+1],collapse = ",")
+    genelist <- strsplit(genelist, ",")[[1]]
+    genelist <- gsub(" +","",genelist) 
+    mapping <- gene_mapping[gene_mapping$transcript %in% genelist,]
+    targetcds <- dna_cds[[j]][ dna_cds_name[[j]] %in% mapping$primary_name   ]
+    if(length(targetcds)!= length(genelist)){
+      cat("len mismatch")
+      stop()
+    }    
+    for(k in 1:length(genelist)){
+      if(k != 0){
+        cur = strsplit(names(targetcds)[k]," ")[[1]][1]
+        names(targetcds)[k] <- mapping[ mapping$transcript == cur ,"geneid" ]
+      }
+    }
+    alltargetcds <- append(alltargetcds , targetcds)
+  }
+  
+  write.FASTA(alltargetcds , paste0("M1_dna_seq/",M1_orthogroup[i,"Orthogroup"] , "_M1.fasta") )
+}
+
+#protein alignment
+old <- list.files("", pattern = ".fa") #genome file with protein sequences
+index <- c(1:11)
+old <- old[index]
+falist <- list()
+fanames <- list()
+for(i in 1:11){
+  falist[[i]] <- read.FASTA(paste0("", old[i] ), type="AA")
+  fanames[[i]] <- names(falist[[i]])
+}
+for(i in 1:11){
+  for(j in 1:length(fanames[[i]])){
+    fanames[[i]][j] <- strsplit(fanames[[i]][j] , " ")[[1]][1]
+  }  
+}
+
+M1_orthogroup_2 = M1_orthogroup[M1_orthogroup$Orthogroup %in% gene_count3$Orthogroup,]
+M1_orthogroup2 <- M1_orthogroup_2[M1_orthogroup_2$genecnt == 2 , ]
+for(i in 1:nrow(M1_orthogroup2)){
+  alltargetcds <- list()
+  for(j in 1:11){
+    genelist <- strsplit(M1_orthogroup2[i,j+1] , ",")[[1]]
+    genelist <- gsub(" +","",genelist)
+      mapping <- gene_mapping[gene_mapping$primary_name %in% genelist,]
+      targetcds <- falist[[j]][ fanames[[j]] %in% mapping$transcript]
+    if(length(genelist) != length(targetcds)){
+      cat("len error")
+      stop()
+    }
+      for(k in 1:length(genelist)){
+        if(k != 0){
+        cur = strsplit(names(targetcds)[k]," ")[[1]][1]
+        names(targetcds)[k] <- mapping[ mapping$transcript == cur ,"geneid" ]
+        }
+      }
+      alltargetcds <- append(alltargetcds , targetcds)
+  }
+  write.FASTA(alltargetcds , paste0("M1_protein_seq_cnt2/",M1_orthogroup2[i,"Orthogroup"] , "_AA_M1.fasta"))
+}
+
+#parse tree file
+setwd("")
+trees <- list.files("result/",pattern="_tree.txt")
+treelist <- vector("list", length = length(trees))
+for(i in 1:length(trees)){
+  con = file(paste0("bran_fixed_tree/" , substring(trees[i],1,9),"_tree.txt" ) , "w")
+  tree <- suppressWarnings( readLines(paste0("result/", trees[i] )))
+  tree <- gsub(":[-]{0,}[0-9]+[.]{0,}[0-9e-]{0,}","",tree)
+  tree <- gsub(")[0-9]+",")",tree)
+  
+  cur = str_extract_all(tree,"eleg[0-9]+")[[1]]
+  for(i in 1:length(cur)){
+    tree = gsub(cur[i],paste0(cur[i]," #1"),tree)
+  }
+  write(tree , file=con,append=F)
+  
+  tree <- gsub("[();]","",tree)
+  treelist[[i]] <- strsplit(tree , ",")[[1]]
+  closeAllConnections()
+}
+
+#alternative branch_site model
+setwd("")
+orig <- readLines("XXX.ctl")
+fileConn <- file("branch_all.cmd"  , "w" )
+for( i in 1:length(final_og)){
+  curcon <- file(paste0("branch_ctl_alt/",final_og[i],".ctl") , "w")
+  curcmd <- orig
+  curcmd[1] <-  paste0("      seqfile = " , final_og[i] ,"fix_M1.meg            * sequence data filename")
+  curcmd[2] <- paste0("     treefile = ", final_og[i] , "_tree.txt       * tree structure file name")
+  curcmd[3] <- paste0("      outfile = " , final_og[i] ,"_M1.result.txt         * main result file name")
+  
+  for(j in 1:length(curcmd)){
+    write(curcmd[j] , curcon ,append=T )
+  }
+  close(curcon)
+  write(paste0("codeml  " ,final_og[i],".ctl;") , fileConn,append=T) #change as codeml if in hpc2021  #remember to add ";"
+}
+
+#null branch_site model
+setwd("")
+orig <- readLines("XXX.ctl")
+fileConn <- file("branch_all_null.cmd"  , "w" )
+for( i in 1:length(final_og)){
+  curcon <- file(paste0("branch_ctl_null/",final_og[i],".ctl") , "w")
+  curcmd <- orig
+  curcmd[1] <-  paste0("      seqfile = " , final_og[i] ,"fix_M1.meg            * sequence data filename")
+  curcmd[2] <- paste0("     treefile = ", final_og[i] , "_tree.txt       * tree structure file name")
+  curcmd[3] <- paste0("      outfile = " , final_og[i] ,"_M1.result_null.txt         * main result file name")
+  
+  for(j in 1:length(curcmd)){
+    write(curcmd[j] , curcon ,append=T )
+  }
+  close(curcon)
+  write(paste0("codeml  " ,final_og[i],".ctl;") , fileConn,append=T) #change as codeml if in hpc2021  #remember to add ";"
+}
+
+#parse results file
+pamlname <- list.files("result/", pattern = "result.txt")
+pamllist <- list.files("result/" , full.names = T, pattern = "result.txt")
+pamlresult <- as.data.frame(matrix(ncol=6 , nrow=length(pamllist)))
+colnames(pamlresult) <- c("orthogroup","dn","ds","w", "noend","nosite")
+pamlresult$noend <- T
+pamlresult$nosite <- F
+for(i in 1:length(pamllist)){
+  cur <- readLines(pamllist[i])
+  curname <- strsplit(pamlname[i] , "[_.]")[[1]]
+  pamlresult[i , "orthogroup"] <- curname[1]
+  pamlresult[i,"sig"] <- ""
+  lnl <- c()
+  found <- F
+  after <- 99999999
+  type = 0
+  for(j in 1:length(cur)){
+    if(grepl("After deleting gaps. 0 sites",cur[j],fixed=T)){
+      pamlresult[i,"nosite"] <- T
+    }
+    
+    if(grepl("Time used:",cur[j],fixed=T)){
+      pamlresult[i,"noend"] <- F
+      type=0
+    }
+
+    if(grepl("dS tree:",cur[j],fixed =T)){
+      type = 1
+    }
+    if(grepl("dN tree:",cur[j],fixed=T)){
+      type = 2
+    }      
+    if(grepl("w ratios as labels for TreeView",cur[j],fixed=T)){
+      type = 3
+    }    
+    
+    if(type==1){
+      pamlresult[i,"ds"] <- paste0( pamlresult[i,"ds"] , cur[j])
+    }else if (type == 2){
+      pamlresult[i,"dn"] <- paste0( pamlresult[i,"dn"] , cur[j])
+    }else if(type == 3){
+      pamlresult[i,"w"] <- paste0( pamlresult[i,"w"] , cur[j])
+      
+    }
+  }
+}
+fail <- filter(pamlresult , noend==T && nosite ==F)    
+ok <- filter(pamlresult,noend==F)
+orthogroup <- read.table("", header = T , sep="\t",stringsAsFactors = F)
+orthogroup <- filter( orthogroup , Orthogroup %in% ok$orthogroup )
+genelist <- list()
+totalgenecount <- 0
+for(i in 1:nrow(orthogroup)){
+  x <- unlist(orthogroup[i,2:ncol(orthogroup)])
+  x <- paste(x ,collapse = ",")
+  x <- strsplit(gsub(" ","",x) ,",")[[1]]
+  x <- x[x!=""]
+  totalgenecount <- totalgenecount + length(x)
+  genelist[[i]] <- x
+}
+sp <- colnames(orthogroup)[2:12]
+result <- as.data.frame(matrix( ncol=5,nrow=totalgenecount))
+colnames(result) <- c("Orthogroup","Gene","dn","ds","w")
+index = 1
+for(i in 1:nrow(ok)){
+  df <- as.data.frame(matrix(nrow=length(genelist[[i]]) , ncol=5))
+  colnames(df)<-c("gene","dn","ds","w","actual")
+  df$gene <- gsub(" ","",genelist[[i]])
+  df$actual <- gsub(" ","",genelist[[i]])
+  for(j in 1:nrow(df)){
+    
+    df[j,"gene"]<- gene_mapping[gene_mapping$primary_name==df[j,"gene"] , "geneid"] 
+     
+
+    dn <- str_match_all(ok[i,"dn"] , paste0("[( ]",df[j,"gene"] , ": [0-9.]+" ))[[1]]
+    ds <- str_match_all(ok[i,"ds"] , paste0("[( ]",df[j,"gene"] , ": [0-9.]+" ))[[1]]
+    w <- str_match_all(ok[i,"w"] , paste0("[( ]",df[j,"gene"] , " #[0-9.]+" ))[[1]]
+    if(grepl("nan",ok[i,"w"])){
+      result[index,3:5] <- "na"
+      next()
+    }
+    if(length(dn)!=1){
+      if(grepl( paste0("[( ]",df[j,"gene"] , ": [-]{0,}nan" ),ok[i,"dn"] )){
+        result[index,3] <- "na"
+      }else{
+        cat("multimatch")
+        stop()
+      }
+    }else{
+      result[index,3] <- as.double(strsplit(dn,":")[[1]][2])
+    }
+    if(length(ds)!=1){
+      if(grepl( paste0("[( ]",df[j,"gene"] , ": [-]{0,}nan" ),ok[i,"ds"] )){
+        result[index,4] <- "na"
+      }else{
+        cat("multimatch")
+        stop()
+      }
+    }else{
+       result[index,4] <- as.double(strsplit(ds,":")[[1]][2])
+    }
+    if(length(w)!=1){
+      if(grepl( paste0("[( ]",df[j,"gene"] , ": [-]{0,}nan" ),ok[i,"w"] )){
+        result[index,5] <- "na"
+      }else{
+        cat("multimatch")
+        stop()
+      }
+    }else{
+      result[index,5] <- as.double(strsplit(w,"#")[[1]][2])
+    }
+    result[index , 1] <- ok[i,"orthogroup"]
+    result[index,2] <- df[j,"actual"]
+    index = index +1
+  }
+}
+
+result$wb <- ""
+for(j in 1:nrow(result)){
+  curgene <- gene_mapping[gene_mapping$primary_name==result[j,2] , ] 
+  
+  if(curgene$species =="elegans"){
+    result[j,"wb"] <- curgene$gene_wb
+  }   
+}
+result2 <- result[1:j-1,]
+result2[ result2$dn == "na" , "dn"] <- 0
+result2[ result2$ds == "na" , "ds"] <- 0
+setwd("")
+write.csv(result2 , "dNdS_M1.csv",row.names = F)
+
+#parse paml result by branch site models
+setwd("")
+pamlname <- list.files("./" )
+pamllist <- list.files("./" , full.names = T)
+setwd("")
+pamlname_null <- list.files("./" )
+pamllist_null <- list.files("./" , full.names = T)
+pamlresult <- as.data.frame(matrix(ncol=9 , nrow=length(pamllist)))
+sitepr_threshold = 0
+colnames(pamlresult) <- c("orthogroup","omega","chi","sig" , "pr","firstgene" ,"remove","nosite","dom")
+pamlresult$remove <- F
+pamlresult$nosite <- F
+for(i in 1:length(pamllist)){
+  setwd("D:/Zheng lab/wild isolates/dup_evo_dev/Revision/branch_site/result2")
+  cur <- readLines(pamllist[[i]])
+  setwd("D:/Zheng lab/wild isolates/dup_evo_dev/Revision/branch_site/result2_null")
+  cur2 <- readLines(pamllist_null[[i]])
+  if(length(cur)>0){
+    curname <- strsplit(pamlname[i] , "[_.]")[[1]]
+    pamlresult[i , "orthogroup"] <- curname[1]
+    #pamlresult[i,"cele"] <- curname[2]
+    pamlresult[i,"sig"] <- ""
+    lnl <- c()
+    found <- F
+    after <- which(cur =="Bayes Empirical Bayes (BEB) analysis (Yang, Wong & Nielsen 2005. Mol. Biol. Evol. 22:1107-1118)" )
+    after2 = which(cur =="The grid (see ternary graph for p0-p1)" )
+    
+    lnl1 = cur[grepl("lnL",cur,fixed=T)]
+    cur2_2 = strsplit(pamllist_null[[i]],"_")[[1]][1]
+    cur_2 = strsplit(pamllist[[i]],"_")[[1]][1]
+    if(isTRUE(cur2_2 == cur_2)){
+      lnl2 = cur2[grepl("lnL",cur2,fixed=T)]
+    }
+    lnl <- append(lnl1 , lnl2)
+    
+    for(j in 1:length(cur)){
+      if(j == 5){
+        pamlresult[i,"firstgene"] <-strsplit(cur[5]," ")[[1]][1]
+      }
+      if(grepl("After deleting gaps. 0 sites",cur[j],fixed=T)){
+        pamlresult[i,"nosite"] <- T
+      }
+    }
+    if(isTRUE(after2 - after >4)){
+      for(k in (after+2):(after2-2)){
+        if(isTRUE(cur[k] != "")){
+          num <- str_match_all(cur[k],"[0-9][.]{0,}[0-9]{0,}")[[1]]
+          pos <- as.integer(num[1])
+          sitepr <- as.double(num[2])
+          aa <- str_match(cur[k],"[A-Z]")[[1]][1]
+          if(isTRUE(sitepr >= sitepr_threshold)){
+            site <- paste(pos,aa,sep="_")
+            pamlresult[i,"sig"] <- paste(pamlresult[i,"sig"], site,sep=",")
+          }   
+        }
+        
+      }
+    }
+    null_df <- 0
+    alt_df <- 0
+    null_ln <- 0
+    alt_ln <- 0
+    
+    null_df <- as.integer( strsplit( str_match(lnl[1], "np:[0-9 ]+")[[1]] ,":")[[1]][2] )
+    alt_df <- as.integer( strsplit( str_match(lnl[2], "np:[0-9 ]+")[[1]] ,":")[[1]][2] )
+    null_ln <- as.double( str_match_all(lnl[1] , "[-+0-9.]+")[[1]][3] )
+    alt_ln <- as.double( str_match_all(lnl[2] , "[-+0-9.]+")[[1]][3] )
+    
+    chi <- 2 * abs(alt_ln - null_ln)
+    df <- abs(alt_df - null_df)
+    pamlresult[i,"chi"] <- chi
+    pamlresult[i,"pr"] <- pchisq(chi , df , lower.tail=F)
+  }
+}
+setwd("")
+save(pamlresult,file = "brach_site_positive.RData")

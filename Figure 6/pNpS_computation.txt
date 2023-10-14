@@ -1,0 +1,209 @@
+library(dplyr)
+library(ape)
+library(stringr)
+
+#in R
+#codon index
+input <-read.table( "CodonMatrix.txt" , header=F, stringsAsFactors = F) # CodonMatrix.txt is the file with possible substitutions for pairwise AA change
+input$diff <- 0
+for(i in 1:nrow(input)){
+  a <- strsplit(input[i,1],"")[[1]]
+  b <- strsplit(input[i,2],"")[[1]]
+  for(j in 1:3){
+    if(a[j] != b[j]){
+      input[i,"diff"] <- input[i,"diff"] + 1
+    }
+  }
+}
+input_single <- filter(input, diff==1)
+unique(input$V1) -> x
+for(i in 1:length(x)){
+  if(nrow(filter(input_single,V2==x[i] | V1==x[i]))!=9){
+    cat("wrong",x[i])
+  }
+}
+
+index <- as.data.frame(matrix(ncol=3,nrow=64,data=0))
+colnames(index ) <- c("codon","n","s")
+index$codon <- x
+for(i in 1:64){
+  cur <- filter(input_single,V2==index[i,1] | V1==index[i,1])
+  index[i,2] <- sum(cur[,4]) / 3
+  index[i,3] <- sum(cur[,3]) / 3
+}
+rm(cur,input,input_single)
+
+#non-syn dn ds for each gene 
+read.table("missense.vcf",header=F,stringsAsFactors = F) -> missense
+read.table("nonsense.vcf",header=F,stringsAsFactors = F) -> stopgain 
+nonsyn <- bind_rows(missense , stopgain)
+nonsyn <- distinct(nonsyn,V1,V2,V3,V4,V5,V8)
+nonsyn <- filter(nonsyn , nchar(V4)==1 & nchar(V5)==1)
+genelist <- read.table("all_gene_list2.txt",stringsAsFactors = F,header=T)
+
+nonsyn$problem <- F
+nonsyn$gene<-""
+for(i in 1:nrow(nonsyn)){
+  gene <- unique(str_match_all(nonsyn[i,6] , "WBGene[0-9]+")[[1]])
+  if(length(gene) != 1){
+    realgene <- c()
+    for(j in 1:length(gene)){
+      pos <- filter(genelist,Wb==gene[j])
+      if(nrow(pos)==0){
+        next()
+      }
+      if(nonsyn[i,2] >= pos$start & nonsyn[i,2] <= pos$end){
+        realgene <- append(realgene, gene[j])
+      }
+    }
+    if(length(realgene) != 1){
+      nonsyn[i,"problem"] <-T
+    }else{
+      nonsyn[i,"gene"] <- realgene
+    }
+  }else{
+    nonsyn[i,"gene"] <- gene
+  }
+}
+
+for(i in 1:nrow(nonsyn)){
+  if(nonsyn[i,"problem"]){
+    cur <-unique(unlist(str_match_all(nonsyn[i,6],"WBGene[0-9]+")[[1]]))
+    cur <- cur[cur %in% genelist$Wb]
+    if(length(cur)==1){
+      nonsyn[i,"problem"] <- F
+      nonsyn[i,"gene"] <- cur
+    }
+  }
+}
+
+for( i in 1:nrow(nonsyn)){
+  if(nonsyn[i,"problem"]){
+   cur <-  str_split(  nonsyn[i,6] , ";")[[1]] 
+   cur <- cur[grepl("WBGene[0-9]+" , cur)]
+   cur <- cur[ grepl("missense" , cur ) | grepl("stop_gained" , cur)]
+   if(length(cur)== 1 ){
+     nonsyn[i,"problem"] <- F
+     nonsyn[i,"gene"] <- str_match(cur,"WBGene[0-9]+")[[1]] 
+   }
+  }
+}
+nonsyn_problem <- filter(nonsyn,problem==T)
+nonsyn2 <- bind_rows(filter(nonsyn,problem==F) , nonsyn_problem) %>% select(-c(problem))
+genelist$nd <- 0
+
+for(i in 1:nrow(genelist)){
+  cur <- filter(nonsyn2 , grepl(genelist[i,"Wb"] , gene)) 
+  genelist[i,"nd"] <- nrow(cur)
+}
+
+#potential N S for each gene  
+geneseq <- read.FASTA("genome file with CDS sequence.fa")
+seqhead<- names(geneseq)
+seqhead <-unlist( str_match_all(seqhead,"WBGene[0-9]+"))
+geneseq <- geneseq[seqhead%in%genelist$Wb]
+seqhead <- seqhead[seqhead%in%genelist$Wb]
+genelist$seq <- ""
+genelist$N <- 0
+genelist$S <- 0
+missinglist <- c()
+for(i in 1:nrow(genelist)){
+  if(genelist[i,"Wb"] %in% seqhead){
+    cur <- geneseq[seqhead==genelist[i,"Wb"]]
+    maxlen <- 0
+    maxcur <- ""
+    n <- 0
+    s <- 0
+    for(j in 1:length(cur)){
+      x <- paste0(unlist(as.character(cur[j])) ,collapse = "")
+      if(nchar(x)>maxlen){
+        maxlen = nchar(x)
+        maxcur <- x
+      }
+    }
+    if(maxlen%%3 != 0){
+        cat("error seq not dividable by 3")
+        stop()
+    }else{
+      for(k in 1:(maxlen/3)){
+        curaa <- toupper(substring(maxcur, (k*3 - 2) , (k*3) ))
+        n <- n + index[index$codon==curaa, "n"]
+        s <- s + index[index$codon==curaa, "s"]
+      }
+      genelist[i,"N"] <- n
+      genelist[i,"S"] <- s
+    }
+  }else{
+    cat("Gene missing ", genelist[i,"Wb"],"\n")
+    missinglist <- append(missinglist, genelist[i,"Wb"])
+  }
+}
+
+#syn mutation calculation
+read.table("synonymous.vcf",header=F,stringsAsFactors = F) -> syn
+syn <- distinct(syn,V1,V2,V3,V4,V5,V8)
+syn <- filter(syn , nchar(V4)==1 & nchar(V5)==1)
+syn <- filter(syn , grepl("WBGene",V8))
+syn$problem <- F
+syn$gene<-""
+syn <- filter(syn,grepl("synonymous",V8))
+syn <- filter(syn , grepl("c.[0-9]+[ATCG]>[ATCG]", V8))
+for(i in 1:nrow(syn)){
+  gene <- unique(str_match_all(syn[i,6] , "WBGene[0-9]+")[[1]])
+  if(length(gene) != 1){
+    realgene <- c()
+    for(j in 1:length(gene)){
+      pos <- filter(genelist,Wb==gene[j])
+      if(nrow(pos)==0){
+        next()
+      }
+      if(syn[i,2] >= pos$start & syn[i,2] <= pos$end){
+        realgene <- append(realgene, gene[j])
+      }
+    }
+    if(length(realgene) != 1){
+      syn[i,"problem"] <-T
+    }else{
+      syn[i,"gene"] <- realgene
+    }
+  }else{
+    syn[i,"gene"] <- gene
+  }
+}
+
+for(i in 1:nrow(syn)){
+  if(syn[i,"problem"]){
+    cur <-unique(unlist(str_match_all(syn[i,6],"WBGene[0-9]+")[[1]]))
+    cur <- cur[cur %in% genelist$Wb]
+    if(length(cur)==1){
+      syn[i,"problem"] <- F
+      syn[i,"gene"] <- cur
+    }
+  }
+}
+
+for( i in 1:nrow(syn)){
+  if(syn[i,"problem"]){
+   cur <-  str_split(  syn[i,6] , ";")[[1]] 
+   cur <- cur[grepl("WBGene[0-9]+" , cur)]
+   cur <- cur[grepl("synonymous" , cur)]
+   if(length(cur)== 1 ){
+     syn[i,"problem"] <- F
+     syn[i,"gene"] <- str_match(cur,"WBGene[0-9]+")[[1]] 
+   }
+  }
+}
+syn_problem <- filter(syn,problem==T)
+syn4 <- bind_rows(filter(syn,problem==F) , syn_problem) %>% select(-c(problem))
+genelist$ns <- 0
+
+for(i in 1:nrow(genelist)){
+  genelist[i,"ns"] <- nrow(filter(syn4 , grepl(genelist[i,"Wb"] , gene)) )
+}
+
+genelist_final <- filter(genelist, N!=0) %>% select(c(Wb,name,nd,ns,N,S)) 
+colnames(genelist_final) <- c("Wb","name","Nd","Sd","N","S")
+genelist_final <- mutate(genelist_final , Pn = Nd / N , Ps = Sd / S)
+genelist_final <- mutate(genelist_final , dN = -(0.75 * log(1-((4/3)*Pn))) , dS=-(0.75 * log(1-((4/3)*Ps))))
+
+
